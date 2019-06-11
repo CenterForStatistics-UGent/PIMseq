@@ -1,0 +1,29 @@
+Package: PIMseq
+Title: PIM for testing DGE in single cell RNA-seq data
+Version: 0.0.0.9000
+Authors@R: 
+    person(given = "Alemu Takele",
+           family = "Assefa",
+           role = c("aut", "cre"),
+           email = "alemutakele.assefa@gmail.com")
+Description: Uses probabilistic Index Models (PIM) for testing differential 
+             gene expression (DGE) in RNA-seq data.
+Encoding: UTF-8
+License: GPL-2
+LazyData: true
+Imports:  
+  pim,
+  stats,
+  SingleCellExperiment,
+  SummarizedExperiment, 
+  parallel,
+  dummies,
+  graphics,
+  survival 
+RoxygenNote: 6.1.1
+Depends: R (>= 3.3.0)
+Suggests: 
+    knitr,
+    rmarkdown,
+    testthat
+VignetteBuilder: knitr

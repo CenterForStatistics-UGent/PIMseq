@@ -1,0 +1,176 @@
+---
+title: "PIMSeq: A probablistic index model for testing differential expression RNA-seq data"
+author: "Alemu Takele Assefa"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+## Introduction
+We propose a semi-parametric method based on Probabilistic Index Models (PIM)^[Thas, O., Neve, J. D., Clement, L., & Ottoy, J. P. (2012). Probabilistic index models. Journal of the Royal Statistical Society: Series B (Statistical Methodology), 74(4), 623-671.] for testing differential expression (DE) in single cell and bulk RNA-seq data. PIM entails a large class of semi-parametric models that can generate many of the traditional rank tests, such as the Wilcoxon-Mann-Whitney test and  the Kruskal-Wallis test ^[De Neve, J., & Thas, O. (2015). A regression framework for rank tests based on the probabilistic index model. Journal of the American Statistical Association, 110(511), 1276-1283.]. These models can be seen as the rank-equivalent of the generalized linear models (GLM) for a parametric setting. These methods do not assume a particular probability distribution and hence they are more generally valid. Moreover, PIMs come with parameters that posses an informative interpretation as effect sizes. PIMs can be used for complex experimental designs involving, for example, multiple groups of cells, multiple discrete or continuous factors. Moreover, the high abundance of zero counts in scRNA-seq data results the the commonly known problem  called tied observations. PIM is well suited for this problem as the modeling is still valid under the presence of tied observations.
+
+
+To demonstrate how PIMs can be implemented for testing DE in RNA-seq data, we discuss here a simple scenario with two independent groups of cells, for example active treatment and control, from a single biological sample and batch. Let $Y_{gi}$ denotes the normalized gene expression (outcome) of gene $g=1,2,\dots,G$ in cell $i=1,2,\dots n$. We assume the gene expression data are presented in a matrix with $G$ rows for genes and $n$ columns for cells. Let $X$ be the treatment indicator, such that $X_i=1$ if cell $i$ is in the active treatment group and $X_i=0$ if in the control group. Therefore, we specify PIM using logit link function as 
+\begin{equation}
+\textrm{logit}\left\{\textrm P(Y_{gi}\preccurlyeq Y_{gj}|X_{i}, X_{j})\right\} = \beta_g(X_{j}-X_{i}),
+\label{eq:pim_example}
+\end{equation}
+We use the indices $i$ and $j$ to refer to cell $i$ and $j$, $i\ne j$. The coefficient $\beta_g\in \mathbb{R}$ represents the effect of the treatment on the PI of the outcome. Once its estimate ($\hat\beta_g$) is obtained, the PI can be estimated as
+\begin{equation*}
+\hat {\textrm P}(Y_{gi}\preccurlyeq Y_{gj}|X_{i}, X_{j}) = \frac{e^{\hat\beta_g(X_{j}-X_{i})}}{1+e^{\hat\beta_g(X_{j}-X_{i})}} \in [0, 1]. 
+\end{equation*}
+
+If there is a strong evidence that gene $g$ is DE, then PI becomes close to 1 (if the gene is up regulated in the treatment group) or 0 (if down regulated in the treatment group). Under the null hypothesis (no DE), the estimated PI is expected to be 0.5, indicating that there is a 50\% chance that the expression of gene $g$ in a randomly selected cell from the control group is lower than that of a randomly selected cell from the treatment group (and vice versa).
+
+Statistical hypothesis testing can be performed with the Wald test of Thas et al (2012) $^1$. For example, for model \eqref{eq:pim_example}, the null hypothesis of no DE can be formulated as
+\begin{equation*}
+H_0: \beta_g=0 .
+\label{eq:pim_H0}
+\end{equation*}
+Applying this test to every candidate gene results in a vector of raw $p$-values, to which the usual false discovery rate control procedures, such as the Benjamin and Hochberg ^[Benjamini, Y., & Hochberg, Y. (1995). Controlling the false discovery rate: a practical and powerful approach to multiple testing. Journal of the Royal statistical society: series B (Methodological), 57(1), 289-300.] approach, can be applied. 
+
+## Examples
+```{r, eval=FALSE, fig.width=10, fig.height=5, warning=FALSE, message=FALSE}
+library(PIMseq)
+library(SingleCellExperiment) 
+
+# -----------------------------------------------------------------------------
+# Example 1
+# Analysis of Neuroblastoma cell line single cell RNA-seq data for testing DE between
+# nutlin treated and control (vehicle) cells
+
+data("scNGP.data") 
+scNGP.data2 <- scNGP.data[rowSums(counts(scNGP.data)>0)>10, ]
+
+colData(scNGP.data2)$treatment <- 
+ifelse(colData(scNGP.data2)$characteristics..treatment=="nutlin",1,0)
+knitr::kable(table(colData(scNGP.data2)$treatment))
+
+# let's apply PIM on CPM
+library(edgeR)
+assays(scNGP.data2)[["log2cpm"]] <- log2(cpm(counts(scNGP.data2))+1)
+res.PIM <- PIMSeq(SCExp = scNGP.data2, condition = "treatment", 
+                              assay.name = "log2cpm", n.cores = 1)
+
+knitr::kable(head(res.PIM$test.contrasts))  # result based on the standard PIM
+knitr::kable(head(res.PIM$all.coefficients)) # (optional) estimated coefficients 
+# and their standard error
+
+#number of detected DE genes at 5% FDR
+knitr::kable(table(res.PIM$test.contrasts$p.adjusted <0.05))
+
+# number of detected DE genes at 5% FDR and PI <0.4 or PI >0.6
+knitr::kable(table(res.PIM$test.contrasts$p.adjusted <0.05 & 
+        (res.PIM$test.contrasts$PI<0.4 | res.PIM$test.contrasts$PI>0.6)))
+
+# number of down-regulated DE genes at 5% FDR and PI <0.4
+down.reg <- sum(res.PIM$test.contrasts$p.adjusted <0.05 & res.PIM$test.contrasts$PI<0.4)
+
+# number of up-regulated DE genes at 5% FDR and PI > 0.6
+up.reg <- sum(res.PIM$test.contrasts$p.adjusted <0.05 & res.PIM$test.contrasts$PI>0.6)
+
+# rank genes based on their estimated PI  
+par(mfrow=c(1,2))
+plotPIrank(res.PIM, contrast = 1)
+text(2500, 0.1, paste("#down.reg genes =", down.reg), col="blue")
+text(9500, 0.9, paste("#up.reg genes =", up.reg), col="blue")
+title(main="Gene ranking based on PI")
+
+# alternative plots to volcano plot
+plot(res.PIM$test.contrasts$PI, -log10(res.PIM$test.contrasts$p.value), 
+     col=factor(res.PIM$test.contrasts$p.adjusted<0.05), las=1,
+     xlab="PI", ylab="-log10(p value)", main="volcano plot")
+legend("bottomright", c("FDR<0.05", "FDR>=0.05"), col=c(2,1), pch=19)
+
+```
+
+
+```{r, eval=FALSE, warning=FALSE, message=FALSE}
+# ------------------------------------------------------------------------------------
+# Example 2
+# Analysis of NORMALIZED Neuroblastoma cell line single cell RNA-seq data for 
+# testing DE between nutlin treated and control (vehicle) cells
+
+# We paricularly use the counts per millions of reads (CPM) to normalize the data.
+
+data("scNGP.data")
+dim(scNGP.data)
+scNGP.data2 <- scNGP.data[rowSums(counts(scNGP.data)>0)>10, ] 
+
+log2.CPM <- log2(counts(scNGP.data2) %*% diag(1e6/colSums(counts(scNGP.data2))) + 1)
+names(assays(scNGP.data2))
+assays(scNGP.data2)$log2CPM <- log2.CPM
+names(assays(scNGP.data2))
+
+colData(scNGP.data2)$treatment <- 
+ ifelse(colData(scNGP.data2)$characteristics..treatment=="nutlin",1,0)
+table(colData(scNGP.data2)$treatment)
+
+res.PIM <- PIMSeq(SCExp = scNGP.data2, condition = "treatment",
+                              assay.name = "log2CPM", nuisance.vars = NULL)
+
+
+head(res.PIM$test.contrasts)  # result based on the standard PIM
+
+# number of detected DE genes at 5% FDR
+table(res.PIM$test.contrasts$p.adjusted <0.05) 
+
+
+
+
+# -----------------------------------------------------------------------------
+# Example 3
+# Applying PIM for complex experimental design and testing contrasts.
+# For this purpose, let us simulate artificial data for a 2x2 factorial design.
+# i.e. two factors each with two levels
+example.data <- make.example.data(n.gene = 1000, n.sample = 50, n.group = 2, 
+                                  n.batch = 2, p.DEgenes = 0.2)
+table(example.data$Group, example.data$Batch)
+
+colData(example.data)$X1 <- as.factor(example.data$Group)
+colData(example.data)$X2 <- as.factor(example.data$Batch)
+colData(example.data)$logLS <- log(example.data$E.LS)
+
+keep <- rowSums(counts(example.data)>0)>10
+table(keep)
+example.data <- example.data[keep, ]  # filter genes
+dim(example.data)
+
+
+res.PIM2 <- PIMSeq(SCExp = example.data, condition = c("X1", "X2", "X1*X2"), 
+                   nuisance.vars = "logLS")
+head(res.PIM2$test.contrasts)
+table(res.PIM2$test.contrasts$p.adjusted<0.05)  # number of DE genes, but b/n which group
+
+#DE between levels of factor 1 when the level of factor 2 is 1
+contrast1 <- testPIMcontrast(res.PIM2, contrasts = c(1, 0, 0)) 
+
+#DE between levels of factor 1 when the level of factor 2 is 2
+contrast2 <- testPIMcontrast(res.PIM2, contrasts = c(1, 0, 1))
+
+#DE between levels of factor 2 when the level of factor 1 is 1 
+contrast3 <- testPIMcontrast(res.PIM2, contrasts = c(0, 1, 0)) 
+
+#DE between levels of factor 2 when the level of factor 1 is 2
+contrast4 <- testPIMcontrast(res.PIM2, contrasts = c(0, 1, 1))
+ 
+table(contrast1$p.adjusted<0.05)
+table(contrast2$p.adjusted<0.05)
+table(contrast3$p.adjusted<0.05)
+table(contrast4$p.adjusted<0.05)
+```
+
+
+
+
+
