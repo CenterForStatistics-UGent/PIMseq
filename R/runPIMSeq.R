@@ -7,21 +7,18 @@
 #' @param SCExp a SingleCellExperiment object containing gene expression data, gene and 
 #' cell level annotations
 #' @param condition a character name(s) that refer to column(s) in colData(SCExp) 
-#' indicating the primary factor(s) across which we test for DE. (see details)
+#' indicating the primary factor(s). (see details)
 #' @param nuisance.vars a vector of characters that refer to column(s) in colData(SCExp) 
-#' indicating nuisance variables such as normalization variables (log library size).
+#' indicating nuisance/technical factors such as normalization variables.
 #' If nuisance_vars=NULL, PIMSeq assumes the data in SCExp is a normalized data. (see details)
 #' @param assay.name a character value indicating the name of the assay (gene expression matrix)
 #' in SCExp. Default is counts. See Example 2 for its usage.
 #' @param link a character value for the type of link function. Possible values are 
 #' "logit", "probit" and "identity". The default is "logit".
 #' @param coxph.aprox a logical value. If TRUE, coxph algorithm will be used to approximate the PIM
-#' estimates for faster computation
-#' @param tie.adjust a logical value whether to use tie adjusted partial likelihood 
-#' if CoxPH translation of PIM is used (add the argument ties="" to choose the type of adjustment 
-#' among c("efron","breslow","exact"). The default is ties="efron")
-#' @param n.cores the number of cores for parallel computing. It can be 1 (default), >1L, or 
-#' "available". (see details)
+#' parameters for faster computation
+#' @param BPPARAM BiocParallelParam for parallel computing (see BiocParallel). Default is
+#' BiocParallel::SerialParam() -- no parallelization
 #' @param verbose a logical value whether to show the progress status
 #' @param ... additional arguments to be passed to pim such as compare, model, ...
 #' 
@@ -95,7 +92,7 @@
 #' colData(scNGP.data2)$logLS <- log(colSums(counts(scNGP.data2)))
 #' 
 #' res.PIM <- PIMSeq(SCExp = scNGP.data2, condition = "treatment", 
-#'                               nuisance.vars = "logLS", n.cores = 1)
+#'                               nuisance.vars = "logLS", BPPARAM=BiocParallel::SerialParam())
 #' 
 #' head(res.PIM$test.contrasts)  # result based on the standard PIM
 #' head(res.PIM$all.coefficients) # (optional) estimated coefficients and their standard error
@@ -208,10 +205,9 @@
 #' 
 #' @import  pim 
 #' @importFrom SingleCellExperiment SingleCellExperiment colData rowData
-#' @importFrom survival coxph
-#' @importFrom dummies dummy
-#' @importFrom parallel detectCores parLapplyLB makeCluster stopCluster
-#' @importFrom stats pnorm pchisq p.adjust as.formula rgamma rlnorm rnbinom wilcox.test
+#' @importFrom survival coxph Surv 
+#' @importFrom BiocParallel bplapply SerialParam 
+#' @importFrom stats pnorm pchisq p.adjust as.formula rgamma rlnorm rnbinom wilcox.test model.frame
 #' @importFrom SummarizedExperiment assays
 PIMSeq <- function(SCExp,
                    condition, 
@@ -219,9 +215,8 @@ PIMSeq <- function(SCExp,
                    assay.name ="counts", 
                    link="logit", 
                    verbose=TRUE, 
-                   coxph.aprox=FALSE,
-                   tie.adjust=TRUE,
-                   n.cores=1, ...)
+                   coxph.aprox=FALSE, 
+                   BPPARAM=BiocParallel::SerialParam(), ...)
   {
   
   #Creat PIMlist object
@@ -232,65 +227,11 @@ PIMSeq <- function(SCExp,
                            verbose=verbose, ...)
   
   #Fit PIM  
-  fit.model <- fit.PIM(PIMlist, link=link, n.cores=n.cores, coxph.aprox=coxph.aprox,
-                       tie.adjust=tie.adjust, verbose=verbose, ...)   
+  fit.model <- fit.PIM(PIMlist, link=link, coxph.aprox=coxph.aprox,
+                       BPPARAM=BPPARAM, verbose=verbose, ...)   
   
-  #Test contrasts
-  #if(verbose) message("testing contrast ....")
-  test.contrasts <- as.data.frame(do.call('rbind', lapply(fit.model, function(mod){
-    sub.coef <- sort(unique(do.call("c", lapply(condition, 
-                                                function(nm) grep(nm, names(mod$b)))))) 
-    
-    b    <- as.matrix(mod$b[sub.coef])
-    v    <- mod$v[sub.coef, sub.coef]
-    if(length(sub.coef)==1){
-      z.stat  <- try(b/sqrt(v), silent = TRUE)
-      if(class(z.stat) == "try-error"){
-        z.stat <- 0
-      }
-      pval <- as.numeric(2*pnorm(abs(z.stat), lower.tail = FALSE)) 
-      PI.DE <- exp(b)/(1+exp(b))
-      list(ID = as.character(mod$tag.name), Test.Stat=z.stat, p.value=pval, PI=PI.DE)
-    }
-    else if(length(sub.coef)>1){
-      lrt  <- try(as.numeric(t(b) %*% solve(v) %*% b), silent = TRUE)
-      if(class(lrt) == "try-error"){
-        lrt <- 0
-      }
-      pval <- as.numeric(pchisq(lrt, nrow(b), lower.tail = FALSE))
-      max.abs.beta <- b[which.max(abs(b))]
-      PI.DE <- exp(max.abs.beta)/(1+exp(max.abs.beta))
-      list(ID = as.character(mod$tag.name), Test.Stat=lrt, p.value=pval, PI=PI.DE)
-    } 
-  })))
-  
-  test.contrasts$ID         <- as.character(test.contrasts$ID) 
-  test.contrasts$Test.Stat  <- as.numeric(test.contrasts$Test.Stat)
-  test.contrasts$p.value    <- as.numeric(test.contrasts$p.value) 
-  test.contrasts$p.adjusted <- p.adjust(test.contrasts$p.value, method="BH")
-  test.contrasts$PI         <- as.numeric(test.contrasts$PI)
-  
-  all.coefficients <- as.data.frame(t(sapply(fit.model, function(mod){
-    b         <- mod$b 
-    names(b)  <- paste0("beta:", names(b))
-    std.error <- sqrt(diag(mod$v))
-    names(std.error) <- paste0("SE:", rownames(mod$v))
-    tag <- mod$tag.name
-    names(tag) <- "ID"
-    
-    c(tag, b, std.error)
-  })))
-  all.coefficients[, -1] <- apply(all.coefficients[,-1], 2, function(x) as.numeric(as.character(x)))
-  
-  augmented.MP.df <- as.data.frame(t(sapply(fit.model, function(mod){
-    mod$augmented.MPI
-  })))
-  augmented.MP.df$p.adjusted <- p.adjust(augmented.MP.df$p.value, method = "BH")
-  augmented.MP.df$ID  <- test.contrasts$ID
-  
-  list(test.contrasts=test.contrasts, all.coefficients=all.coefficients, 
-       augmented.MP=augmented.MP.df, 
-       add.PIM.results = list(fit.model=fit.model, 
-                              PIMSeq.inputs=list(SCExp=SCExp, condition=condition, 
-                                                 nuisance.vars=nuisance.vars, ink=link)))
+  #Global DE test 
+  glob.DE.test <- golbalDEtest(fit.model, SCExp=SCExp,  condition=condition, 
+                               nuisance.vars=nuisance.vars, ...)
+  return(glob.DE.test)
 }

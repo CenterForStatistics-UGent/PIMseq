@@ -1,5 +1,5 @@
 ---
-title: "PIMSeq: A probablistic index model for testing differential expression RNA-seq data"
+title: "PIMseq: A probablistic index model for testing differential expression RNA-seq data"
 author: "Alemu Takele Assefa"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
@@ -7,6 +7,7 @@ vignette: >
   %\VignetteIndexEntry{Vignette Title}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
+bibliography: references.bib
 ---
 
 ```{r setup, include = FALSE}
@@ -14,54 +15,77 @@ knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>"
 )
+
+library(PIMseq)
 ```
 
 ## Introduction
-We propose a semi-parametric method based on Probabilistic Index Models (PIM)^[Thas, O., Neve, J. D., Clement, L., & Ottoy, J. P. (2012). Probabilistic index models. Journal of the Royal Statistical Society: Series B (Statistical Methodology), 74(4), 623-671.] for testing differential expression (DE) in single cell and bulk RNA-seq data. PIM entails a large class of semi-parametric models that can generate many of the traditional rank tests, such as the Wilcoxon-Mann-Whitney test and  the Kruskal-Wallis test ^[De Neve, J., & Thas, O. (2015). A regression framework for rank tests based on the probabilistic index model. Journal of the American Statistical Association, 110(511), 1276-1283.]. These models can be seen as the rank-equivalent of the generalized linear models (GLM) for a parametric setting. These methods do not assume a particular probability distribution and hence they are more generally valid. Moreover, PIMs come with parameters that posses an informative interpretation as effect sizes. PIMs can be used for complex experimental designs involving, for example, multiple groups of cells, multiple discrete or continuous factors. Moreover, the high abundance of zero counts in scRNA-seq data results the the commonly known problem  called tied observations. PIM is well suited for this problem as the modeling is still valid under the presence of tied observations.
+We propose a semi-parametric method based on Probabilistic Index Models (PIM, @thas2012 and @de2015) for testing differential expression (DE) in single cell RNA-seq data. PIM entails a large class of semi-parametric models that can generate many of the traditional rank tests, such as the Wilcoxon-Mann-Whitney test and  the Kruskal-Wallis test [@de2015]. These models can be seen as the rank-equivalent of the generalized linear models (GLM). PIM methods do not rely on strong distributional assumptions and they inherit the robustness of rank methods. Moreover, PIM comes with parameters that possess an informative interpretation as effect sizes. PIM can be used for complex experimental designs involving multiple groups of cells, and multiple discrete or continuous factors. PIM can also account for the different known sources of variation such as library size difference, batch, and cell cycle stage. Moreover, PIM can be applied on the raw count data without the need for a normalization preprocessing step, and it can also be integrated with other data preprocessing methods, such normalization, imputation, and removal of unwanted variation.
 
 
-To demonstrate how PIMs can be implemented for testing DE in RNA-seq data, we discuss here a simple scenario with two independent groups of cells, for example active treatment and control, from a single biological sample and batch. Let $Y_{gi}$ denotes the normalized gene expression (outcome) of gene $g=1,2,\dots,G$ in cell $i=1,2,\dots n$. We assume the gene expression data are presented in a matrix with $G$ rows for genes and $n$ columns for cells. Let $X$ be the treatment indicator, such that $X_i=1$ if cell $i$ is in the active treatment group and $X_i=0$ if in the control group. Therefore, we specify PIM using logit link function as 
-\begin{equation}
-\textrm{logit}\left\{\textrm P(Y_{gi}\preccurlyeq Y_{gj}|X_{i}, X_{j})\right\} = \beta_g(X_{j}-X_{i}),
+To illustrate how PIM can be implemented for testing DE in scRNA-seq data, we first focus on a simple scenario with two groups of cells. Let $Y_{gi}$ denote the normalized gene expression of gene $g=1,2,\dots,G$ in cell $i=1,2,\dots,n$. Let covariate $X=A$ be the treatment indicator, such that $A_i=1$ if cell i is in one group and $A_i=0$ if the cell is in the other group.
+
+In a GLM the conditional mean $\mu_{Y_g|A} = \textrm{E}(Y_g|A)$ is modelled as a function of the factor $A$ through an appropriate link function $g(.)$. In contrast, a PIM models the conditional probability
+\begin{eqnarray}
+\textrm P(Y_{gi}\preccurlyeq Y_{gj} | A_{i}, A_{j}) = \textrm P(Y_{gi}< Y_{gj}| A_{i}, A_{j})+\frac{1}{2}\textrm P(Y_{gi}= Y_{gj}| A_{i}, A_{j}),\nonumber
+\label{eq:pim_prob}
+\end{eqnarray}
+
+where the indices $i$ and $j$ refer cell $i$ and $j$ with associated grouping factor $A_i$ and $A_j$, respectively. This probability is known as the *probabilistic index* (PI).
+
+We specify a PIM using the logit link function as
+\begin{eqnarray}
+\textrm{logit}\left\{\textrm P(Y_{gi}\preccurlyeq Y_{gj} | A_{i}, A_{j})\right\} = \beta_g(A_{j}-A_{i}).\nonumber
 \label{eq:pim_example}
-\end{equation}
-We use the indices $i$ and $j$ to refer to cell $i$ and $j$, $i\ne j$. The coefficient $\beta_g\in \mathbb{R}$ represents the effect of the treatment on the PI of the outcome. Once its estimate ($\hat\beta_g$) is obtained, the PI can be estimated as
-\begin{equation*}
-\hat {\textrm P}(Y_{gi}\preccurlyeq Y_{gj}|X_{i}, X_{j}) = \frac{e^{\hat\beta_g(X_{j}-X_{i})}}{1+e^{\hat\beta_g(X_{j}-X_{i})}} \in [0, 1]. 
-\end{equation*}
+\end{eqnarray}
+The parameter $\beta_g\in \mathbb{R}$ represents the effect of the treatment on the PI of the outcome. This effect is expressed  as $P(Y_{gi}\preccurlyeq Y_{gj} | A_{i}=0, A_{j}=1) = \exp(\beta_g)/(1+\exp(\beta_g))$.  Once its estimate ($\hat\beta_g$) is obtained, the PI can be estimated as
+\begin{eqnarray}
+\hat {\textrm P}(Y_{gi}\preccurlyeq Y_{gj} | A_{i}, A_{j}) = \frac{e^{\hat\beta_g(A_{j}-A_{i})}}{1+e^{\hat\beta_g(A_{j}-A_{i})}} \in [0, 1]. \nonumber
+\end{eqnarray}
 
-If there is a strong evidence that gene $g$ is DE, then PI becomes close to 1 (if the gene is up regulated in the treatment group) or 0 (if down regulated in the treatment group). Under the null hypothesis (no DE), the estimated PI is expected to be 0.5, indicating that there is a 50\% chance that the expression of gene $g$ in a randomly selected cell from the control group is lower than that of a randomly selected cell from the treatment group (and vice versa).
+If there is a strong evidence that gene $g$ is DE, then the estimated PI (PI= $\hat {\textrm P}(Y_{gi}\preccurlyeq Y_{gj} | A_{i}=0, A_{j}=1)$) becomes close to 
 
-Statistical hypothesis testing can be performed with the Wald test of Thas et al (2012) $^1$. For example, for model \eqref{eq:pim_example}, the null hypothesis of no DE can be formulated as
-\begin{equation*}
-H_0: \beta_g=0 .
-\label{eq:pim_H0}
-\end{equation*}
-Applying this test to every candidate gene results in a vector of raw $p$-values, to which the usual false discovery rate control procedures, such as the Benjamin and Hochberg ^[Benjamini, Y., & Hochberg, Y. (1995). Controlling the false discovery rate: a practical and powerful approach to multiple testing. Journal of the Royal statistical society: series B (Methodological), 57(1), 289-300.] approach, can be applied. 
+  * 1 (if the gene is  expression is higher in the $A=1$ group) or   
+  * 0 (if lower in the $A=0$ group group).   
+
+Under the null hypothesis (no DE), the estimated PI is expected to be 0.5, indicating that there is a 50\% chance that the expression of gene $g$ in a randomly selected cell from the $A=0$ group is lower than that of a randomly selected cell from the $A=1$ group (and vice versa).
+
+
+Statistical hypothesis testing can be performed with the Wald-type test of @thas2012. For example, for the above model, the null hypothesis of no DE can be formulated as $H_0: \beta_g=0$. This is equivalent to testing $\textrm P(Y_{gi}\preccurlyeq Y_{gj} | A_{i}=0, A_{j}=1)= 0.5$. Applying this test to every candidate gene results in a vector of raw $p$-values, to which the usual FDR control procedures, such as the Benjamin and Hochberg [@benjamini1995controlling] approach, can be applied.   
+
+
+## Installing PIMseq
+PIM can be implemented for testing DE in gene expression data using the PIMseq package, available at \url(https://github.com/CenterForStatistics-UGent/PIMseq). The package can be installed and loaded using the following commands:
+
+```{r load-packages, eval=FALSE, warning=FALSE, message=FALSE, echo=TRUE}
+remotes::install_github("CenterForStatistics-UGent/PIMseq")
+```
+
+## Data
+To illustrate PIMseq using real scRNA-seq data, we use the NGP-nutlin-3 neuroblastoma scRNA-seq data accessed from @Verboom430090's study (GEO accession GSE119984). This data is a cellular perturbation experiment on the C1 instrument. This total RNA seq dataset contains 83 NGP neuroblastoma cells of which 31 were treated with 8$\mu$M of nutlin-3 and the other 52 cells were treated with vehicle (controls).
+
 
 ## Examples
-```{r, eval=FALSE, fig.width=10, fig.height=5, warning=FALSE, message=FALSE}
-library(PIMseq)
+### Example 1
+In this particular example, we test for DE between nutlin-3 and vehicle group of cells with the log-library size as anuisance variable to acount for library size differences between cells.
+```{r, eval=TRUE, fig.width=10, fig.height=5, warning=FALSE, message=FALSE}
+# load required package
 library(SingleCellExperiment) 
 
-# -----------------------------------------------------------------------------
-# Example 1
-# Analysis of Neuroblastoma cell line single cell RNA-seq data for testing DE between
-# nutlin treated and control (vehicle) cells
-
+#load NGP neuroblastoma scRNA-seq data 
 data("scNGP.data") 
-scNGP.data2 <- scNGP.data[rowSums(counts(scNGP.data)>0)>10, ]
-
+scNGP.data2 <- scNGP.data[rowSums(counts(scNGP.data)>0)>10, ] # filter genes
 colData(scNGP.data2)$treatment <- 
 ifelse(colData(scNGP.data2)$characteristics..treatment=="nutlin",1,0)
-knitr::kable(table(colData(scNGP.data2)$treatment))
+knitr::kable(table(colData(scNGP.data2)$treatment)) # cells distribution
+colData(scNGP.data2)$logLS <- log(colSums(counts(scNGP.data2))) # calculate log library size
 
-# let's apply PIM on CPM
-library(edgeR)
-assays(scNGP.data2)[["log2cpm"]] <- log2(cpm(counts(scNGP.data2))+1)
-res.PIM <- PIMSeq(SCExp = scNGP.data2, condition = "treatment", 
-                              assay.name = "log2cpm", n.cores = 1)
+# apply PIMseq. We use available cores for parallel computation using BiocParallel package. 
+res.PIM <- PIMSeq(SCExp = scNGP.data2, condition = "treatment",
+                  assay.name = "counts", nuisance.vars = "logLS",
+                  BPPARAM = BiocParallel::SnowParam())
 
+# View and explore results
 knitr::kable(head(res.PIM$test.contrasts))  # result based on the standard PIM
 knitr::kable(head(res.PIM$all.coefficients)) # (optional) estimated coefficients 
 # and their standard error
@@ -94,22 +118,17 @@ legend("bottomright", c("FDR<0.05", "FDR>=0.05"), col=c(2,1), pch=19)
 
 ```
 
-
-```{r, eval=FALSE, warning=FALSE, message=FALSE}
-# ------------------------------------------------------------------------------------
-# Example 2
-# Analysis of NORMALIZED Neuroblastoma cell line single cell RNA-seq data for 
-# testing DE between nutlin treated and control (vehicle) cells
-
-# We paricularly use the counts per millions of reads (CPM) to normalize the data.
-
+### Example 2
+In this example, we demonstrate PIM with a normalized scRNA-seq data. In particular, we use the counts per millions of reads (CPM) as a normalized data.
+```{r, eval=TRUE, warning=FALSE, message=FALSE}
+# load data
 data("scNGP.data")
 dim(scNGP.data)
 scNGP.data2 <- scNGP.data[rowSums(counts(scNGP.data)>0)>10, ] 
 
-log2.CPM <- log2(counts(scNGP.data2) %*% diag(1e6/colSums(counts(scNGP.data2))) + 1)
+CPM <- counts(scNGP.data2) %*% diag(1e6/colSums(counts(scNGP.data2)))
 names(assays(scNGP.data2))
-assays(scNGP.data2)$log2CPM <- log2.CPM
+assays(scNGP.data2)$CPM <- CPM # there are two assay names now
 names(assays(scNGP.data2))
 
 colData(scNGP.data2)$treatment <- 
@@ -117,22 +136,26 @@ colData(scNGP.data2)$treatment <-
 table(colData(scNGP.data2)$treatment)
 
 res.PIM <- PIMSeq(SCExp = scNGP.data2, condition = "treatment",
-                              assay.name = "log2CPM", nuisance.vars = NULL)
+                  assay.name = "CPM", nuisance.vars = NULL,
+                  BPPARAM = BiocParallel::SnowParam()) # note that the assay name is changed
 
 
-head(res.PIM$test.contrasts)  # result based on the standard PIM
+head(res.PIM$test.contrasts)  # results
 
 # number of detected DE genes at 5% FDR
 table(res.PIM$test.contrasts$p.adjusted <0.05) 
+```
 
 
+### Example 3
+In this example, we demonstrate PIM for complex experimental design. For this purpose, let us simulate artificial gene expression data for a 2x2 factorial design, i.e. two factors each with two levels. The analysis involves testing for the main effect for each factor and their interaction effect. Therefore, the demonstration includes applying PIM and test for a global DE, and afterwards, we test for a particular set of contrasts using *testPIMcontrast()* function. We use *make.example.data()* function to simulate data from negative binomial distribution as a quick approach. Moreover, we use the log library size a nuisance factor to normalize the data.
 
+```{r, eval=TRUE, fig.width=10, fig.height=5, warning=FALSE, message=FALSE} 
+# simulate artificial data (1000 genes (with 20% of them are DE), 4x50 cells, 2 biological 
+# groups, and 2 batch groups). Note that the simulation generates 2 biological groups of 
+# cells and 2 batchs. We treat the batch as a second main factor. Each combination  
+# of the two factors contain 50 replicates.
 
-# -----------------------------------------------------------------------------
-# Example 3
-# Applying PIM for complex experimental design and testing contrasts.
-# For this purpose, let us simulate artificial data for a 2x2 factorial design.
-# i.e. two factors each with two levels
 example.data <- make.example.data(n.gene = 1000, n.sample = 50, n.group = 2, 
                                   n.batch = 2, p.DEgenes = 0.2)
 table(example.data$Group, example.data$Batch)
@@ -141,27 +164,27 @@ colData(example.data)$X1 <- as.factor(example.data$Group)
 colData(example.data)$X2 <- as.factor(example.data$Batch)
 colData(example.data)$logLS <- log(example.data$E.LS)
 
-keep <- rowSums(counts(example.data)>0)>10
+keep <- rowSums(counts(example.data)>0)>10 # filter genes
 table(keep)
 example.data <- example.data[keep, ]  # filter genes
 dim(example.data)
 
-
+# apply PIMseq
 res.PIM2 <- PIMSeq(SCExp = example.data, condition = c("X1", "X2", "X1*X2"), 
-                   nuisance.vars = "logLS")
+                   nuisance.vars = "logLS", BPPARAM = BiocParallel::SnowParam())
 head(res.PIM2$test.contrasts)
-table(res.PIM2$test.contrasts$p.adjusted<0.05)  # number of DE genes, but b/n which group
+table(res.PIM2$test.contrasts$p.adjusted<0.05)  # number of DE genes, but b/n which group?
 
-#DE between levels of factor 1 when the level of factor 2 is 1
+#Contrast 1: DE between levels of factor 1 when the level of factor 2 is 1
 contrast1 <- testPIMcontrast(res.PIM2, contrasts = c(1, 0, 0)) 
 
-#DE between levels of factor 1 when the level of factor 2 is 2
+#Contrast 2: DE between levels of factor 1 when the level of factor 2 is 2
 contrast2 <- testPIMcontrast(res.PIM2, contrasts = c(1, 0, 1))
 
-#DE between levels of factor 2 when the level of factor 1 is 1 
+#Contrast 3: DE between levels of factor 2 when the level of factor 1 is 1 
 contrast3 <- testPIMcontrast(res.PIM2, contrasts = c(0, 1, 0)) 
 
-#DE between levels of factor 2 when the level of factor 1 is 2
+#Contrast 4: DE between levels of factor 2 when the level of factor 1 is 2
 contrast4 <- testPIMcontrast(res.PIM2, contrasts = c(0, 1, 1))
  
 table(contrast1$p.adjusted<0.05)
@@ -170,6 +193,8 @@ table(contrast3$p.adjusted<0.05)
 table(contrast4$p.adjusted<0.05)
 ```
 
+
+## References
 
 
 

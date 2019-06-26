@@ -18,7 +18,7 @@
 # @import pim
 # @importFrom parallel detectCores parLapplyLB makeCluster stopCluster 
 # 
-fit.PIM <- function(PIMlist, link, n.cores, coxph.aprox, verbose, tie.adjust, ...){
+fit.PIM <- function(PIMlist, link, BPPARAM, coxph.aprox, verbose,  ...){
   if(verbose) message("fitting PIM ....")
   
   expres.mat    <- PIMlist$expression.mat
@@ -30,29 +30,30 @@ fit.PIM <- function(PIMlist, link, n.cores, coxph.aprox, verbose, tie.adjust, ..
   
   if(coxph.aprox){
     coxphApprox(expres.mat=expres.mat, model.formula=model.formula,
-                X.mat=X.mat, U.mat=U.mat, tie.adjust=tie.adjust, ...)
+                X.mat=X.mat, U.mat=U.mat, BPPARAM=BPPARAM, ...)
   }
   else{
-    if(n.cores == "available"){
-      cl <- parallel::detectCores()-1
-      message(".... parallel computing on all available cores (minus 1)")
-      cl <- parallel::makeCluster(cl)
-    }
-    else if(n.cores>1 & n.cores != "available"){
-      cl <- n.cores
-      message(".... parallel computing on ", n.cores, " cores")
-      cl <- parallel::makeCluster(cl)
-    }
-    else if(n.cores==1){
-      if(ncol(expres.mat)>200)
-      {message(".... running PIM on a single core: parallel computing can be used for faster computation")}
-      cl <- n.cores
-      cl <- parallel::makeCluster(cl)
-    }
+    # if(n.cores == "available"){
+    #   cl <- parallel::detectCores()-1
+    #   message(".... parallel computing on all available cores (minus 1)")
+    #   cl <- parallel::makeCluster(cl)
+    # }
+    # else if(n.cores>1 & n.cores != "available"){
+    #   cl <- n.cores
+    #   message(".... parallel computing on ", n.cores, " cores")
+    #   cl <- parallel::makeCluster(cl)
+    # }
+    # else if(n.cores==1){
+    #   if(ncol(expres.mat)>200)
+    #   {message(".... running PIM on a single core: parallel computing can be used for faster computation")}
+    #   cl <- n.cores
+    #   cl <- parallel::makeCluster(cl)
+    
     
     #parallel::clusterExport(cl, c("expres.mat", "X.mat", "U.mat"), envir = environment())
     #parallel::clusterEvalQ(cl, c(library('pim')))
-    pim.models.list <- parallel::parLapplyLB(cl, seq_len(nrow(expres.mat)), function(tag){
+    #pim.models.list <- parallel::parLapplyLB(cl, seq_len(nrow(expres.mat)), function(tag){
+    pim.models.list <- BiocParallel::bplapply(seq_len(nrow(expres.mat)), function(tag){
       #pim.models.list <- lapply(seq_len(nrow(expres.mat)), function(tag){ 
       y <- log2(as.vector(expres.mat[tag, ])+1) 
       if(!is.null(U.mat)){
@@ -88,23 +89,37 @@ fit.PIM <- function(PIMlist, link, n.cores, coxph.aprox, verbose, tie.adjust, ..
         tag.pim.res
       }
       else{
+         
+        if(!is.null(U.mat)){
+          r <- sum(sapply(1:ncol(X.mat), function(x){
+            if(is.factor(X.mat[,x])){length(levels(X.mat[,x]))-1}
+            else{1}
+          }))+ sum(sapply(1:ncol(U.mat), function(x){
+            if(is.factor(U.mat[,x])){length(levels(U.mat[,x]))-1}
+            else{1}
+          })) 
+          
+          names <- c(as.character(sapply(1:ncol(X.mat), function(x){
+            if(is.factor(X.mat[,x])){paste0(colnames(X.mat)[x],levels(X.mat[,x])[-1])}
+            else{colnames(X.mat)[x]}
+          })),
+          as.character(sapply(1:ncol(U.mat), function(x){
+            if(is.factor(U.mat[,x])){paste0(colnames(U.mat)[x],levels(U.mat[,x])[-1])}
+            else{colnames(U.mat)[x]}
+          })))
+        }else{
+          r <- sum(sapply(1:ncol(X.mat), function(x){
+            if(is.factor(X.mat[,x])){length(levels(X.mat[,x]))-1}
+            else{1}
+          }))
+          
+          names <- c(as.character(sapply(1:ncol(X.mat), function(x){
+            if(is.factor(X.mat[,x])){paste0(colnames(X.mat)[x],levels(X.mat[,x])[-1])}
+            else{colnames(X.mat)[x]}
+          })))
+        }
         
-        r <- sum(sapply(1:ncol(X.mat), function(x){
-          if(is.factor(X.mat[,x])){length(levels(X.mat[,x]))-1}
-          else{1}
-        }))+ sum(sapply(1:ncol(U.mat), function(x){
-          if(is.factor(U.mat[,x])){length(levels(U.mat[,x]))-1}
-          else{1}
-        })) 
-        
-        names <- c(as.character(sapply(1:ncol(X.mat), function(x){
-          if(is.factor(X.mat[,x])){paste0(colnames(X.mat)[x],levels(X.mat[,x])[-1])}
-          else{colnames(X.mat)[x]}
-        })),
-        as.character(sapply(1:ncol(U.mat), function(x){
-          if(is.factor(U.mat[,x])){paste0(colnames(U.mat)[x],levels(U.mat[,x])[-1])}
-          else{colnames(U.mat)[x]}
-        }))) 
+         
         # main.test <- gdata::unmatrix(main.test,byrow=FALSE)
         # main.test
         
@@ -115,8 +130,9 @@ fit.PIM <- function(PIMlist, link, n.cores, coxph.aprox, verbose, tie.adjust, ..
         tag.pim.res
       }
       
-    })
-    parallel::stopCluster(cl)
+    },
+    BPPARAM = BPPARAM)
+    #parallel::stopCluster(cl)
     pim.models.list
   } 
 }

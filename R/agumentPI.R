@@ -25,14 +25,14 @@ augmentedPI <- function(pim.fit, y, a, x,link="logit", y.pobs=NULL, alpha=0.05){
   
   a <- as.factor(a)
   if(length(unique(a))!=2){
-    message("Augmented marginal PI is not applicable for a grouping factor with level morethan 2.")
+    #message("Augmented marginal PI is not applicable for a grouping factor with level morethan 2.")
     return(c(Augmented.MPI=NA, 
              Std.Error=NA, 
              Wald.statistic=NA, 
              p.value=NA))
   }
   else if(is.null(x)){
-    message("Augmented marginal PI is not applicable onl if there is additional covariate.")
+   # message("Augmented marginal PI is not applicable onl if there is additional covariate.")
     return(c(Augmented.MPI=NA, 
              Std.Error=NA, 
              Wald.statistic=NA, 

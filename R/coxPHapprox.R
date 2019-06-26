@@ -18,10 +18,11 @@
 # @export
 # @import survival
 # 
-coxphApprox <- function(expres.mat, model.formula, X.mat, U.mat, tie.adjust, ties="efron", ...){
+coxphApprox <- function(expres.mat, model.formula, X.mat, U.mat, 
+                        ties="efron", BPPARAM, ...){
   message("Using CoxPH as an approximation to the PIM for faster computation.")
   
-  pim.models.list <- lapply(seq_len(nrow(expres.mat)), function(tag){
+  pim.models.list <- BiocParallel::bplapply(seq_len(nrow(expres.mat)), function(tag){
     #pim.models.list <- lapply(seq_len(nrow(expres.mat)), function(tag){ 
     y <- log2(as.vector(expres.mat[tag, ])+1) 
     if(!is.null(U.mat)){
@@ -37,12 +38,13 @@ coxphApprox <- function(expres.mat, model.formula, X.mat, U.mat, tie.adjust, tie
     
     # Fit models 
     Cns <- rep(1, nrow(d))
-    fml <- as.formula(paste("Surv(y, Cns)", model.formula))
-    if(tie.adjust){
-      model.tag <- try(coxph(fml, data = d, ties=ties, ...), silent=TRUE)
-    }else{
-      model.tag <- try(coxph(fml, data = d, ...), silent=TRUE)
-    }
+    fml <- as.formula(paste("survival::Surv(y, Cns)", model.formula))
+    # if(tie.adjust){
+    #   model.tag <- try(coxph(fml, data = d, ties=ties, ...), silent=TRUE)
+    # }else{
+    #   model.tag <- try(coxph(fml, data = d, ...), silent=TRUE)
+    # }
+    model.tag <- try(coxph(fml, data = d, ties=ties, ...), silent=TRUE)
     
     
     if(class(model.tag) != "try-error"){
@@ -54,24 +56,37 @@ coxphApprox <- function(expres.mat, model.formula, X.mat, U.mat, tie.adjust, tie
                             augmented.MPI=augmented.MPI)
       tag.pim.res
     }
-    else{
+    else{ 
+      if(!is.null(U.mat)){
+        r <- sum(sapply(1:ncol(X.mat), function(x){
+          if(is.factor(X.mat[,x])){length(levels(X.mat[,x]))-1}
+          else{1}
+        }))+ sum(sapply(1:ncol(U.mat), function(x){
+          if(is.factor(U.mat[,x])){length(levels(U.mat[,x]))-1}
+          else{1}
+        })) 
+        
+        names <- c(as.character(sapply(1:ncol(X.mat), function(x){
+          if(is.factor(X.mat[,x])){paste0(colnames(X.mat)[x],levels(X.mat[,x])[-1])}
+          else{colnames(X.mat)[x]}
+        })),
+        as.character(sapply(1:ncol(U.mat), function(x){
+          if(is.factor(U.mat[,x])){paste0(colnames(U.mat)[x],levels(U.mat[,x])[-1])}
+          else{colnames(U.mat)[x]}
+        })))
+      }
+      else{
+        r <- sum(sapply(1:ncol(X.mat), function(x){
+          if(is.factor(X.mat[,x])){length(levels(X.mat[,x]))-1}
+          else{1}
+        }))
+        
+        names <- c(as.character(sapply(1:ncol(X.mat), function(x){
+          if(is.factor(X.mat[,x])){paste0(colnames(X.mat)[x],levels(X.mat[,x])[-1])}
+          else{colnames(X.mat)[x]}
+        })))
+      }
       
-      r <- sum(sapply(1:ncol(X.mat), function(x){
-        if(is.factor(X.mat[,x])){length(levels(X.mat[,x]))-1}
-        else{1}
-      }))+ sum(sapply(1:ncol(U.mat), function(x){
-        if(is.factor(U.mat[,x])){length(levels(U.mat[,x]))-1}
-        else{1}
-      })) 
-      
-      names <- c(as.character(sapply(1:ncol(X.mat), function(x){
-        if(is.factor(X.mat[,x])){paste0(colnames(X.mat)[x],levels(X.mat[,x])[-1])}
-        else{colnames(X.mat)[x]}
-      })),
-      as.character(sapply(1:ncol(U.mat), function(x){
-        if(is.factor(U.mat[,x])){paste0(colnames(U.mat)[x],levels(U.mat[,x])[-1])}
-        else{colnames(U.mat)[x]}
-      }))) 
       # main.test <- gdata::unmatrix(main.test,byrow=FALSE)
       # main.test
       
@@ -82,6 +97,7 @@ coxphApprox <- function(expres.mat, model.formula, X.mat, U.mat, tie.adjust, tie
       tag.pim.res
     }
     
-  }) 
+  },
+  BPPARAM=BPPARAM) 
   pim.models.list  
 }

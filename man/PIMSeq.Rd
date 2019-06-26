@@ -6,17 +6,17 @@
 \usage{
 PIMSeq(SCExp, condition, nuisance.vars = NULL, assay.name = "counts",
   link = "logit", verbose = TRUE, coxph.aprox = FALSE,
-  tie.adjust = TRUE, n.cores = 1, ...)
+  BPPARAM = BiocParallel::SerialParam(), ...)
 }
 \arguments{
 \item{SCExp}{a SingleCellExperiment object containing gene expression data, gene and 
 cell level annotations}
 
 \item{condition}{a character name(s) that refer to column(s) in colData(SCExp) 
-indicating the primary factor(s) across which we test for DE. (see details)}
+indicating the primary factor(s). (see details)}
 
 \item{nuisance.vars}{a vector of characters that refer to column(s) in colData(SCExp) 
-indicating nuisance variables such as normalization variables (log library size).
+indicating nuisance/technical factors such as normalization variables.
 If nuisance_vars=NULL, PIMSeq assumes the data in SCExp is a normalized data. (see details)}
 
 \item{assay.name}{a character value indicating the name of the assay (gene expression matrix)
@@ -28,14 +28,10 @@ in SCExp. Default is counts. See Example 2 for its usage.}
 \item{verbose}{a logical value whether to show the progress status}
 
 \item{coxph.aprox}{a logical value. If TRUE, coxph algorithm will be used to approximate the PIM
-estimates for faster computation}
+parameters for faster computation}
 
-\item{tie.adjust}{a logical value whether to use tie adjusted partial likelihood 
-if CoxPH translation of PIM is used (add the argument ties="" to choose the type of adjustment 
-among c("efron","breslow","exact"). The default is ties="efron")}
-
-\item{n.cores}{the number of cores for parallel computing. It can be 1 (default), >1L, or 
-"available". (see details)}
+\item{BPPARAM}{BiocParallelParam for parallel computing (see BiocParallel). Default is
+BiocParallel::SerialParam() -- no parallelization}
 
 \item{...}{additional arguments to be passed to pim such as compare, model, ...}
 }
@@ -109,7 +105,7 @@ table(colData(scNGP.data2)$treatment)
 colData(scNGP.data2)$logLS <- log(colSums(counts(scNGP.data2)))
 
 res.PIM <- PIMSeq(SCExp = scNGP.data2, condition = "treatment", 
-                              nuisance.vars = "logLS", n.cores = 1)
+                              nuisance.vars = "logLS", BPPARAM=BiocParallel::SerialParam())
 
 head(res.PIM$test.contrasts)  # result based on the standard PIM
 head(res.PIM$all.coefficients) # (optional) estimated coefficients and their standard error
