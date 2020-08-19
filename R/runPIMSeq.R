@@ -177,7 +177,7 @@
 #' dim(example.data)
 #' 
 #' 
-#' res.PIM2 <- PIMSeq(SCExp = example.data, condition = c("X1", "X2", "X1*X2"), 
+#' res.PIM2 <- PIMSeq(SCExp = example.data, condition = c("X1", "X2", "X1:X2"), 
 #'                    nuisance.vars = "logLS")
 #' head(res.PIM2$test.contrasts)
 #' table(res.PIM2$test.contrasts$p.adjusted<0.05)  # number of DE genes, but b/n which group
