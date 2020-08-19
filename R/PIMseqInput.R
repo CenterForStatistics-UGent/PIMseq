@@ -29,7 +29,7 @@ createPIMList <- function(SCExp, name.X,  name.U,  assay.name, verbose, ...){
   
   #Creat matrix of factors
   if(!is.null(name.X)){ 
-    unique.name.X <- unique(do.call('c', lapply(name.X, function(x) unlist(strsplit(x, "[*]")))))
+    unique.name.X <- unique(do.call('c', lapply(name.X, function(x) unlist(strsplit(x, ":")))))
     check.X <- sapply(unique.name.X, function(x){
       if(x %in% names(colData(SCExp))) {TRUE}
       else {FALSE}
@@ -45,7 +45,7 @@ createPIMList <- function(SCExp, name.X,  name.U,  assay.name, verbose, ...){
   }
   
   if(!is.null(name.U)){
-    unique.name.U <- unique(do.call('c', lapply(name.U, function(x) unlist(strsplit(x, "[*]")))))
+    unique.name.U <- unique(do.call('c', lapply(name.U, function(x) unlist(strsplit(x, ":")))))
     check.U <- sapply(unique.name.U, function(u){
       if(u %in% names(colData(SCExp))) {TRUE}
       else {FALSE}
