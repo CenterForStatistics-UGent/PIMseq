@@ -62,7 +62,7 @@ testPIMcontrast<- function(pim.res,  contrasts, only.conditions=TRUE,
         PI.DE <- PI.DE.all[which.max(abs(PI.DE.all-0.5))]
         if(all(class(v.lf.inv) != "try-error")){
           z.lf  <- as.numeric((t(lf) %*% v.lf.inv %*% lf))
-          p.val <- as.numeric(1-pchisq(q=Z.lf, df = nrow(contrasts)))
+          p.val <- as.numeric(1-pchisq(q=z.lf, df = nrow(contrasts)))
         }else{
           z.lf  <- NA
           p.val <- NA 
