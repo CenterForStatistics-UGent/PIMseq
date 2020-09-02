@@ -75,7 +75,7 @@ testPIMcontrast<- function(pim.res,  contrasts, only.conditions=TRUE,
         if(ncol(contrasts) != length(b)) stop("Number of columns of contrast matrix must match number of coefficients in fit")
         lf   <- as.numeric(contrasts%*%b)
         v.lf <- as.numeric(contrasts %*% v %*% t(contrasts))
-        PI.DE <- as.numeric(exp(lf)/(1+exp(lf))) 
+        PI.DE.all <- as.numeric(exp(lf)/(1+exp(lf))) 
         PI.DE <- PI.DE.all[which.max(abs(PI.DE.all-0.5))]
         if(v.lf>0){
           z.lf <- as.numeric(lf/sqrt(v.lf))
