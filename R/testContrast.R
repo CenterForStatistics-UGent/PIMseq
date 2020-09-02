@@ -18,7 +18,7 @@
 #' error, p value, estimated PI, and FDR adjusted p value.
 #' 
 #' @examples
-#'  # examples
+#'  # see examples of PIMSeq function.
 #' @export
 
 
@@ -27,8 +27,8 @@ testPIMcontrast<- function(pim.res,  contrasts, only.conditions=TRUE,
   if(is.null(pim.res)) stop("PIM results not found.") 
   if(is.null(contrasts)) stop("Must specify contrasts.")
   if(anyNA(contrasts))  stop("NAs not allowed in contrasts")
+  if(!is.matrix(contrasts)) stop("Contrast should be a matrix class. Rows showd be contrasts and the number of columns should be equal to the number of coefficients in the model.")
   
-  contrasts <- as.matrix(contrasts) 
   if(only.conditions){
     name.X <- pim.res$add.PIM.results$PIMSeq.inputs$condition
   }
@@ -39,7 +39,8 @@ testPIMcontrast<- function(pim.res,  contrasts, only.conditions=TRUE,
   
   per.gene.test <- lapply(pim.res$add.PIM.results$fit.model, function(pim.res.gene){
     sub.coef <- sort(unique(do.call("c", lapply(name.X, 
-                                           function(nm) grep(nm, names(pim.res.gene$b)))))) 
+                  function(nm) grep(nm, names(pim.res.gene$b)))))) 
+    
     b    <- as.matrix(pim.res.gene$b[sub.coef])
     v    <- pim.res.gene$v[sub.coef,sub.coef]
     if(anyNA(b) | anyNA(v) | anyNA(v<0)){
@@ -51,30 +52,51 @@ testPIMcontrast<- function(pim.res,  contrasts, only.conditions=TRUE,
       
       p.val <- NA
       PI.DE <- NA 
-    }
-    else{
-      if(nrow(contrasts) != length(b)) stop("Number of columns of contrast matrix must match number of coefficients in fit")
-      
-      lf   <- t(contrasts)%*%b
-      v.lf <- as.numeric(t(as.matrix(contrasts)) %*% v %*% as.matrix(contrasts))
-      z.lf <- as.numeric(lf/sqrt(v.lf))
-      
-      p.val <- as.numeric(2*(1-pnorm(abs(z.lf))))
-      PI.DE <- as.numeric(exp(lf)/(1+exp(lf)))
-    }
-     
-    list(ID = as.character(pim.res.gene$tag.name), contrast=as.numeric(lf), 
-         Test.Stat=z.lf,  std.error=v.lf, p.value=p.val, PI=PI.DE)
+    }else{
+      if(nrow(contrasts)>1){
+        if(ncol(contrasts) != length(b)) stop("Number of columns of contrast matrix must match number of coefficients in fit")
+        lf   <- contrasts %*% b
+        v.lf <- contrasts %*% v %*% t(contrasts)
+        v.lf.inv <- try(solve(v.lf), silent = TRUE)
+        PI.DE.all <- as.numeric(exp(lf)/(1+exp(lf))) 
+        PI.DE <- PI.DE.all[which.max(abs(PI.DE.all-0.5))]
+        if(all(class(v.lf.inv) != "try-error")){
+          z.lf  <- as.numeric((t(lf) %*% v.lf.inv %*% lf))
+          p.val <- as.numeric(1-pchisq(q=Z.lf, df = nrow(contrasts)))
+        }else{
+          z.lf  <- NA
+          p.val <- NA 
+        } 
+        out.list <- data.frame(ID = as.character(pim.res.gene$tag.name),
+                               PI=PI.DE, Chis.quare=z.lf,  p.value=p.val)
+       
+        
+      }else{
+        if(ncol(contrasts) != length(b)) stop("Number of columns of contrast matrix must match number of coefficients in fit")
+        lf   <- as.numeric(contrasts%*%b)
+        v.lf <- as.numeric(contrasts %*% v %*% t(contrasts))
+        PI.DE <- as.numeric(exp(lf)/(1+exp(lf))) 
+        PI.DE <- PI.DE.all[which.max(abs(PI.DE.all-0.5))]
+        if(v.lf>0){
+          z.lf <- as.numeric(lf/sqrt(v.lf))
+          p.val <- as.numeric(2*(1-pnorm(abs(z.lf))))
+        }else{
+          z.lf  <- NA
+          p.val <- NA  
+        }
+        
+        out.list <- data.frame(ID = as.character(pim.res.gene$tag.name), 
+                               PI=PI.DE,
+                               contrast=as.numeric(lf),
+                               std.error=as.numeric(v.lf),
+                               Z=z.lf,  p.value=p.val)
+      }
+    } 
+    out.list
   })
   
   test.contrasts <- as.data.frame(do.call('rbind', per.gene.test))
-  test.contrasts$ID         <- as.character(test.contrasts$ID) 
-  test.contrasts$contrast   <- as.numeric(test.contrasts$contrast) 
-  test.contrasts$Test.Stat  <- as.numeric(test.contrasts$Test.Stat)
-  test.contrasts$std.error  <- as.numeric(test.contrasts$std.error)
-  test.contrasts$p.value    <- as.numeric(test.contrasts$p.value) 
-  test.contrasts$p.adjusted <- p.adjust(test.contrasts$p.value, method="BH")
-  test.contrasts$PI         <- as.numeric(test.contrasts$PI)
+  test.contrasts$p.adjusted <- p.adjust(test.contrasts$p.value, method="BH") 
   
   test.contrasts
 } 
