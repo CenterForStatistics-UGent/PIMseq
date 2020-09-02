@@ -1,8 +1,9 @@
 # internal function for testing global DE
 golbalDEtest <- function(fit.model, SCExp, nuisance.vars, condition, ...){
-  test.contrasts <- as.data.frame(do.call('rbind', lapply(fit.model, function(mod){
-    sub.coef <- sort(unique(do.call("c", lapply(condition, 
-                                                function(nm) grep(nm, names(mod$b)))))) 
+  test.contrasts <- as.data.frame(do.call('rbind', 
+        lapply(fit.model, function(mod){
+    sub.coef <- sort(unique(do.call("c", 
+              lapply(condition,  function(nm) grep(nm, names(mod$b)))))) 
     
     b    <- as.matrix(mod$b[sub.coef])
     v    <- mod$v[sub.coef, sub.coef]
@@ -13,7 +14,8 @@ golbalDEtest <- function(fit.model, SCExp, nuisance.vars, condition, ...){
       }
       pval <- as.numeric(2*pnorm(abs(z.stat), lower.tail = FALSE)) 
       PI.DE <- exp(b)/(1+exp(b))
-      list(ID = as.character(mod$tag.name), Test.Stat=z.stat, p.value=pval, PI=PI.DE)
+      data.frame(ID = as.character(mod$tag.name), 
+                 PI=PI.DE, Z=z.stat, p.value=pval)
     }
     else if(length(sub.coef)>1){
       lrt  <- try(as.numeric(t(b) %*% solve(v) %*% b), silent = TRUE)
@@ -23,15 +25,12 @@ golbalDEtest <- function(fit.model, SCExp, nuisance.vars, condition, ...){
       pval <- as.numeric(pchisq(lrt, nrow(b), lower.tail = FALSE))
       max.abs.beta <- b[which.max(abs(b))]
       PI.DE <- exp(max.abs.beta)/(1+exp(max.abs.beta))
-      list(ID = as.character(mod$tag.name), Test.Stat=lrt, p.value=pval, PI=PI.DE)
+      data.frame(ID = as.character(mod$tag.name), 
+                 PI=PI.DE,
+                 Chi.square=lrt, p.value=pval)
     } 
-  })))
-  
-  test.contrasts$ID         <- as.character(test.contrasts$ID) 
-  test.contrasts$Test.Stat  <- as.numeric(test.contrasts$Test.Stat)
-  test.contrasts$p.value    <- as.numeric(test.contrasts$p.value) 
-  test.contrasts$p.adjusted <- p.adjust(test.contrasts$p.value, method="BH")
-  test.contrasts$PI         <- as.numeric(test.contrasts$PI)
+  }))) 
+  test.contrasts$p.adjusted <- p.adjust(test.contrasts$p.value, method="BH") 
   
   all.coefficients <- as.data.frame(t(sapply(fit.model, function(mod){
     b         <- mod$b 
