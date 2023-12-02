@@ -73,8 +73,11 @@
 #' 
 #' @examples  
 #' \donttest{
-#' library(PIMseq)
+#' 
 #' library(SingleCellExperiment) 
+#' library(pim)
+#' library(survival)
+#' library(PIMseq)
 #' 
 #' # -----------------------------------------------------------------------------
 #' # Example 1

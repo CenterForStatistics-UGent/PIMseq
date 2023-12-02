@@ -1,5 +1,5 @@
 # internal function for testing global DE
-golbalDEtest <- function(fit.model, SCExp, nuisance.vars, condition, link,...){
+golbalDEtest <- function(fit.model, SCExp, nuisance.vars, condition, link, ...){
   test.contrasts <- as.data.frame(do.call('rbind', 
         lapply(fit.model, function(mod){ 
     sub.coef <- sort(unique(do.call("c", 
@@ -54,5 +54,7 @@ golbalDEtest <- function(fit.model, SCExp, nuisance.vars, condition, link,...){
        augmented.MP=augmented.MP.df, 
        add.PIM.results = list(fit.model=fit.model, 
                               PIMSeq.inputs=list(SCExp=SCExp, condition=condition, 
-                                                 nuisance.vars=nuisance.vars, link=link)))
+                                                 nuisance.vars=nuisance.vars, link=link)
+                              )
+       )
 }

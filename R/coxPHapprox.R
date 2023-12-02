@@ -47,7 +47,7 @@ coxphApprox <- function(expres.mat, model.formula, X.mat, U.mat,
     model.tag <- try(coxph(fml, data = d, ties=ties, ...), silent=TRUE)
     
     
-    if(class(model.tag) != "try-error"){
+    if(class(model.tag)[[1]] != "try-error"){
       
       b=-1*coef(model.tag)
       names(b)      <- colnames(pim::vcov(model.tag))

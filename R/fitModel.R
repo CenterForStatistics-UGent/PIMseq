@@ -74,11 +74,12 @@ fit.PIM <- function(PIMlist, link, BPPARAM, coxph.aprox, verbose,  ...){
       
       # model.tag   <- tryCatch(pim.fit(x=pim::model.matrix(design), y=Y.pobs, 
       #                          penv = tag.pim.env, ...), silent=TRUE)
-      model.tag   <- tryCatch(suppressWarnings(pim.fit(x=pim::model.matrix(design), y=Y.pobs, 
-                                      penv = tag.pim.env, ...)), 
-                              error = function(e){"error"})
+      model.tag   <- try(suppressWarnings(pim.fit(x=pim::model.matrix(design), y=Y.pobs, 
+                                      penv = tag.pim.env, link = link)), 
+                              #error = function(e){"error"},
+                        silent = TRUE )
       
-      if(model.tag != "error"){
+      if(class(model.tag)[[1]] != "try-error"){
         
         b=coef(model.tag)
         names(b)      <- colnames(pim::vcov(model.tag))
