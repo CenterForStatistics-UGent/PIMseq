@@ -1,5 +1,5 @@
 # internal function for testing global DE
-golbalDEtest <- function(fit.model, SCExp, nuisance.vars, condition, ...){
+golbalDEtest <- function(fit.model, SCExp, nuisance.vars, condition, link,...){
   test.contrasts <- as.data.frame(do.call('rbind', 
         lapply(fit.model, function(mod){ 
     sub.coef <- sort(unique(do.call("c", 
