@@ -231,7 +231,7 @@ PIMSeq <- function(SCExp,
                        BPPARAM=BPPARAM, verbose=verbose, ...)   
   
   #Global DE test 
-  glob.DE.test <- golbalDEtest(fit.model, SCExp=SCExp,  condition=condition, 
-                               nuisance.vars=nuisance.vars, ...)
+  glob.DE.test <- golbalDEtest(fit.model = fit.model, SCExp=SCExp,  condition=condition, 
+                               nuisance.vars=nuisance.vars, link=link, ...)
   return(glob.DE.test)
 }

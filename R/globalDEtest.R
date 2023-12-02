@@ -1,7 +1,7 @@
 # internal function for testing global DE
 golbalDEtest <- function(fit.model, SCExp, nuisance.vars, condition, ...){
   test.contrasts <- as.data.frame(do.call('rbind', 
-        lapply(fit.model, function(mod){
+        lapply(fit.model, function(mod){ 
     sub.coef <- sort(unique(do.call("c", 
               lapply(condition,  function(nm) grep(nm, names(mod$b)))))) 
     
@@ -9,7 +9,7 @@ golbalDEtest <- function(fit.model, SCExp, nuisance.vars, condition, ...){
     v    <- mod$v[sub.coef, sub.coef]
     if(length(sub.coef)==1){
       z.stat  <- try(b/sqrt(v), silent = TRUE)
-      if(class(z.stat) == "try-error"){
+      if(class(z.stat)[[1]] == "try-error"){
         z.stat <- 0
       }
       pval <- as.numeric(2*pnorm(abs(z.stat), lower.tail = FALSE)) 
@@ -19,7 +19,7 @@ golbalDEtest <- function(fit.model, SCExp, nuisance.vars, condition, ...){
     }
     else if(length(sub.coef)>1){
       lrt  <- try(as.numeric(t(b) %*% solve(v) %*% b), silent = TRUE)
-      if(class(lrt) == "try-error"){
+      if(class(lrt)[[1]] == "try-error"){
         lrt <- 0
       }
       pval <- as.numeric(pchisq(lrt, nrow(b), lower.tail = FALSE))
