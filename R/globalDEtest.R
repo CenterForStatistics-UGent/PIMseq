@@ -31,6 +31,7 @@ golbalDEtest <- function(fit.model, SCExp, nuisance.vars, condition, link, ...){
     } 
   }))) 
   test.contrasts$p.adjusted <- p.adjust(test.contrasts$p.value, method="BH") 
+  rownames(test.contrasts) <- test.contrasts$ID
   
   all.coefficients <- as.data.frame(t(sapply(fit.model, function(mod){
     b         <- mod$b 
@@ -49,6 +50,7 @@ golbalDEtest <- function(fit.model, SCExp, nuisance.vars, condition, link, ...){
   })))
   augmented.MP.df$p.adjusted <- p.adjust(augmented.MP.df$p.value, method = "BH")
   augmented.MP.df$ID  <- test.contrasts$ID
+  rownames(augmented.MP.df) <- test.contrasts$ID
   
   list(test.contrasts=test.contrasts, all.coefficients=all.coefficients, 
        augmented.MP=augmented.MP.df, 

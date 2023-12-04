@@ -115,7 +115,7 @@
 #' table(res.PIM$test.contrasts$p.adjusted <0.05 & res.PIM$test.contrasts$PI>0.7)
 #' 
 #' # rank genes based on their estimated PI  
-#' plotPIrank(res.PIM, contrast = 1, PI.thrld = c(0.3, 0.7))
+#' plotPIrank(res.PIM, contrast = as.matrix(1), PI.thrld = c(0.3, 0.7))
 #' title(main="Gene ranking based on PI")
 #' 
 #' # alternative plots to volcano plot
@@ -141,7 +141,7 @@
 #' 
 #' log2.CPM <- log2(counts(scNGP.data2) %*% diag(1e6/colSums(counts(scNGP.data2))) + 1)
 #' names(assays(scNGP.data2))
-#' assays(scNGP.data2)$log2CPM <- log2.CPM
+#' assays(scNGP.data2, withDimnames=FALSE)$log2CPM <- log2.CPM
 #' names(assays(scNGP.data2))
 #' 
 #' colData(scNGP.data2)$treatment <- 
@@ -186,16 +186,16 @@
 #' table(res.PIM2$test.contrasts$p.adjusted<0.05)  # number of DE genes, but b/n which group
 #' 
 #' #DE between levels of factor 1 when the level of factor 2 is 1
-#' contrast1 <- testPIMcontrast(res.PIM2, contrasts = c(1, 0, 0)) 
+#' contrast1 <- testPIMcontrast(res.PIM2, contrasts = matrix(c(1, 0, 0), nrow=1)) 
 #' 
 #' #DE between levels of factor 1 when the level of factor 2 is 2
-#' contrast2 <- testPIMcontrast(res.PIM2, contrasts = c(1, 0, 1))
+#' contrast2 <- testPIMcontrast(res.PIM2, contrasts = matrix(c(1, 0, 1), nrow=1))
 #' 
 #' #DE between levels of factor 2 when the level of factor 1 is 1 
-#' contrast3 <- testPIMcontrast(res.PIM2, contrasts = c(0, 1, 0)) 
+#' contrast3 <- testPIMcontrast(res.PIM2, contrasts = matrix(c(0, 1, 0), nrow=1)) 
 #' 
 #' #DE between levels of factor 2 when the level of factor 1 is 2
-#' contrast4 <- testPIMcontrast(res.PIM2, contrasts = c(0, 1, 1))
+#' contrast4 <- testPIMcontrast(res.PIM2, contrasts = matrix(c(0, 1, 1), nrow=1))
 #'  
 #' table(contrast1$p.adjusted<0.05)
 #' table(contrast2$p.adjusted<0.05)
